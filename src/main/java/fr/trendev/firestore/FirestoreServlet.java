@@ -11,9 +11,11 @@ import com.google.cloud.firestore.FirestoreOptions;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
+import io.grpc.netty.shaded.io.netty.util.internal.InternalThreadLocalMap;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
+import java.util.concurrent.locks.LockSupport;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.servlet.ServletException;
@@ -28,7 +30,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 @WebServlet(urlPatterns = {"/firestore"})
 public class FirestoreServlet extends HttpServlet {
-
+    
     private static final Logger LOG = Logger.
             getLogger(FirestoreServlet.class.getName());
 
@@ -101,15 +103,15 @@ public class FirestoreServlet extends HttpServlet {
     }// </editor-fold>
 
     private final String connect() {
-
+        
         final String success = "SUCCESSFULLY_CONNECTED_AND_CLOSED";
-
+        
         try {
             ClassLoader classloader = Thread.currentThread().
                     getContextClassLoader();
             InputStream serviceAccount = classloader.getResourceAsStream(
                     "service-key-account.json");
-
+            
             GoogleCredentials credentials = GoogleCredentials
                     .fromStream(serviceAccount);
             FirebaseOptions options = new FirebaseOptions.Builder()
@@ -119,16 +121,16 @@ public class FirestoreServlet extends HttpServlet {
                             .build())
                     .setCredentials(credentials)
                     .build();
-
+            
             FirebaseApp fa = FirebaseApp.initializeApp(options);
-
+            
             Firestore firestore = FirestoreClient.
                     getFirestore();
-
+            
             fa.delete();
             firestore.close();
             serviceAccount.close();
-
+            
             LOG.info("status : " + success);
             return success;
         } catch (Exception ex) {
@@ -137,5 +139,13 @@ public class FirestoreServlet extends HttpServlet {
         }
         return "ERROR";
     }
-
+    
+    @Override
+    public void destroy() {
+        LockSupport.parkNanos(2_000_000_000);
+        InternalThreadLocalMap.destroy();
+        super.destroy(); //To change body of generated methods, choose Tools | Templates.
+        LOG.info("Firestore Servlet is destroyed");
+    }
+    
 }
